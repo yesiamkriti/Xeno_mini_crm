@@ -8,3 +8,5 @@ const customerSchema = new mongoose.Schema({
     visits: Number,
     lastActive:Date,
 })
+
+module.exports = mongoose.model("Customer",customerSchema);

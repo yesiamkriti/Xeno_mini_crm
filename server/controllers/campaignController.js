@@ -1,55 +1,66 @@
-const CommunicationLog = require("../models/CommunicationLog");
-const Customer = require("../models/Customer");
-const axios = require("axios");
+const Campaign = require('../models/Campaign');
+const Customer = require('../models/Customer');
+const translateQuery = require('../utils/translateQuery');
 
-exports.sendCampaign = async (req, res) => {
-  const { campaignName, messageTemplate, customers } = req.body;
+exports.previewAudience = async (req, res) => {
+  try {
+    const query = translateQuery(req.body.query);
+    const count = await Customer.countDocuments(query);
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ error: 'Error previewing audience' });
+  }
+};
 
-  const logs = [];
+exports.createCampaign = async (req, res) => {
+  const { name, query } = req.body;
 
-  for (const customer of customers) {
-    const personalizedMsg = messageTemplate.replace("{{name}}", customer.name);
-    
-    const log = await CommunicationLog.create({
-      customerId: customer._id,
-      message: personalizedMsg,
-      status: "PENDING",
-      campaignName
+  try {
+    const mongoQuery = translateQuery(query);
+    const audience = await Customer.find(mongoQuery);
+    const audienceSize = audience.length;
+
+    const campaign = await Campaign.create({
+      name,
+      query,
+      audienceSize,
+      sent: 0,
+      failed: 0,
+      messages: []
     });
 
-    // Simulate async vendor call
-    setTimeout(async () => {
-      const status = Math.random() < 0.9 ? "SENT" : "FAILED";
-      await axios.post("http://localhost:5000/api/campaign/receipt", {
-        logId: log._id,
-        status
+    // Push each to queue for delivery
+    for (const customer of audience) {
+      const message = {
+        campaignId: campaign._id,
+        customer: {
+          id: customer._id,
+          name: customer.name,
+          email: customer.email,
+        },
+        text: `Hi ${customer.name}, here’s 10% off on your next order!`
+      };
+
+      const redis = require('redis').createClient({ url: process.env.REDIS_URL });
+      await redis.connect();
+      await redis.xAdd('campaign_delivery_stream', '*', {
+        payload: JSON.stringify(message)
       });
-    }, 500);
+      await redis.disconnect();
+    }
 
-    logs.push(log);
-  }
-
-  res.json({ message: "Campaign dispatched", logs });
-};
-
-exports.updateReceipt = async (req, res) => {
-  const { logId, status } = req.body;
-  try {
-    await CommunicationLog.findByIdAndUpdate(logId, { status });
-    res.json({ message: "Delivery status updated" });
+    res.json({ message: 'Campaign created and delivery initiated' });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create campaign' });
   }
 };
 
-exports.getCampaignHistory = async (req, res) => {
+exports.getCampaigns = async (req, res) => {
   try {
-    const logs = await CommunicationLog.find()
-      .populate("customerId", "name")
-      .sort({ timestamp: -1 });
-
-    res.json(logs);
+    const campaigns = await Campaign.find().sort({ createdAt: -1 });
+    res.json(campaigns);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Error fetching campaigns' });
   }
 };

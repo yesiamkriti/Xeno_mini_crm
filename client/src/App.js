@@ -1,27 +1,43 @@
-import React from "react";
-import CampaignForm from "./Components/CampaignForm";
-import CampaignHistory from "./Components/CampaignHistory";
-import Login from "./Components/Login";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import Layout from './layouts/llayout';
+import CampaignForm from './components/CampaignForm';
+import CampaignHistory from './components/CampaignHistory';
+import Dashboard from './pages/Dashboard';
+import PrivateRoute from './auth/PrivateRoute';
+import Login from './auth/Login';
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
+import './App.css';
+import 'react-querybuilder/dist/query-builder.css';
 
 function App() {
   return (
-    <Router>
-      <div style={{ padding: "20px" }}>
-        <h1>Mini CRM App</h1>
-        <nav>
-          <Link to="/">Segment + Campaign</Link> |{" "}
-          <Link to="/history">History</Link> |{" "}
-          <Link to="/login">Login</Link>
-        </nav>
-        <hr />
-        <Routes>
-          <Route path="/" element={<CampaignForm />} />
-          <Route path="/history" element={<CampaignHistory />} />
-          <Route path="/login" element={<Login />} />
-        </Routes>
-      </div>
-    </Router>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/"
+        element={
+          <PrivateRoute>
+            <Layout><Dashboard /></Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/create"
+        element={
+          <PrivateRoute>
+            <Layout><CampaignForm /></Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/history"
+        element={
+          <PrivateRoute>
+            <Layout><CampaignHistory /></Layout>
+          </PrivateRoute>
+        }
+      />
+    </Routes>
   );
 }
 
